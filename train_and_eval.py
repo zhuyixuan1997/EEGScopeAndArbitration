@@ -11,8 +11,8 @@ from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGRe
 from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
-from deep4_1 import Deep4Net_1
-from deep4_module import Deep4Net_2
+# from deep4_1 import Deep4Net_1
+# from deep4_module import Deep4Net_2
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
 from vit import ViT
@@ -255,26 +255,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                             first_pool_mode=deep4_first_pool_mode, later_pool_mode=deep4_later_pool_mode, drop_prob=dropout,
                             double_time_convs=False, split_first_layer=True, batch_norm=True,
                             batch_norm_alpha=0.1, stride_before_pool=False,first_nonlin=nonlin,later_nonlin=nonlin)
-            elif model_name=='deep4_1':
-                model = Deep4Net_1(
-                            n_channels, n_classes, input_window_samples=window_len_samples,
-                            final_conv_length=final_conv_length, n_filters_time=deep4_n_filters_time, n_filters_spat=deep4_n_filters_spat,
-                            filter_time_length=deep4_filter_time_length, pool_time_length=deep4_pool_time_length, pool_time_stride=deep4_pool_time_stride,
-                            n_filters_2=deep4_n_filters_2, filter_length_2=deep4_filter_length_2, n_filters_3=deep4_n_filters_3,
-                            filter_length_3=deep4_filter_length_3, n_filters_4=deep4_n_filters_4, filter_length_4=deep4_filter_length_4,
-                            first_pool_mode=deep4_first_pool_mode, later_pool_mode=deep4_later_pool_mode, drop_prob=dropout,
-                            double_time_convs=False, split_first_layer=True, batch_norm=True,
-                            batch_norm_alpha=0.1, stride_before_pool=False)
-            elif model_name=='deep4_2':
-                model = Deep4Net_2(
-                            n_channels, n_classes, input_window_samples=window_len_samples,
-                            final_conv_length=final_conv_length, n_filters_time=deep4_n_filters_time, n_filters_spat=deep4_n_filters_spat,
-                            filter_time_length=deep4_filter_time_length, pool_time_length=deep4_pool_time_length, pool_time_stride=deep4_pool_time_stride,
-                            n_filters_2=deep4_n_filters_2, filter_length_2=deep4_filter_length_2, n_filters_3=deep4_n_filters_3,
-                            filter_length_3=deep4_filter_length_3, n_filters_4=deep4_n_filters_4, filter_length_4=deep4_filter_length_4,
-                            first_pool_mode=deep4_first_pool_mode, later_pool_mode=deep4_later_pool_mode, drop_prob=dropout,
-                            double_time_convs=False, split_first_layer=True, batch_norm=True,
-                            batch_norm_alpha=0.1, stride_before_pool=False,first_nonlin=nonlin,later_nonlin=nonlin)
+
             elif model_name=='shallow_smac':
                 model = ShallowFBCSPNet(
                     n_channels, n_classes, input_window_samples=window_len_samples,
