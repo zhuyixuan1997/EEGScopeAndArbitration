@@ -11,12 +11,9 @@ from braindecode.models import ShallowFBCSPNet, Deep4Net,EEGNetv4,EEGNetv1,EEGRe
 from braindecode.preprocessing import (
     exponential_moving_standardize, preprocess, Preprocessor, scale)
 from braindecode.datautil import load_concat_dataset
-# from deep4_1 import Deep4Net_1
-# from deep4_module import Deep4Net_2
 from tcn_1 import TCN_1
 from hybrid_1 import HybridNet_1
 from vit import ViT
-from Trans import ViT_space_fusion
 from util import *
 from train_and_eval_config import *
 from batch_test_hyperparameters import *
@@ -42,7 +39,7 @@ pd.set_option('display.max_columns', 10)
 #
 # gl.set_value('val_a',0 )
 
-params=params_deep4_60
+
 with open(log_path,'a') as f:
     writer=csv.writer(f, delimiter=',',lineterminator='\n',)
     writer.writerow([time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))])
@@ -146,7 +143,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
 
             ds=select_by_channel(ds,channels)
             print('select_channel:',ds.description)
-            # check_inf(ds)
+
 
             preprocessors = [
                 Preprocessor('pick_types', eeg=True, meg=False, stim=False),# Keep EEG sensors
@@ -169,19 +166,11 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 preprocessors.append(Preprocessor(exponential_moving_standardize,  # Exponential moving standardization
                              factor_new=factor_new, init_block_size=init_block_size))
 
-            if preload:
-                preprocess(ds, preprocessors)
-                if saved_data:
-                    ds.save(saved_path, overwrite=True)
-            else:
-                # preprocess(ds, preprocessors, n_jobs=n_jobs, save_dir=saved_path, overwrite=True)
-                preprocess(ds, preprocessors)
+            preprocess(ds, preprocessors, save_dir=saved_path,overwrite=False,n_jobs=n_jobs)# preprocess and save the data,  please note that here is a bug that if set n_jobs=1, there is a risk of memory explosion. So please don't set n_jobs larger than 1 when using the whole dataset.
 
 
         fs = ds.datasets[0].raw.info['sfreq']
-        # print("fs:",fs)
         window_len_samples = int(fs * window_len_s)
-        # window_stride_samples = int(fs * 4)
         if not window_stride_samples:
             window_stride_samples = window_len_samples
 
@@ -289,47 +278,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 model = HybridNet_1(n_channels, n_classes, window_len_samples)
             elif model_name == 'vit':
                 model = ViT(num_channels=n_channels,input_window_samples = window_len_samples,patch_size = vit_patch_size,num_classes = n_classes,dim = vit_dim,depth = vit_depth,heads = vit_heads,mlp_dim = vit_mlp_dim,dropout = dropout,emb_dropout = vit_emb_dropout)
-            elif model_name == 'vit_space_fusion':
-                model=ViT_space_fusion(input_window_samples = window_len_samples)
-            elif model_name =='leaf_efficientnet':
-                import pickle
-                from models.classifier import Classifier
 
-                results_dir = "./leaf/results"
-                hparams_path = os.path.join(results_dir, "hparams.pickle")
-                ckpt_path = os.path.join(results_dir, "ckpts", "epoch=100_tr_loss=0067792_tr_acc=0980434_val_acc=0954013.pth")
-                # ckpt_path="E:/program/leaf-pytorch/results/ckpts/epoch=100_tr_loss=0067792_tr_acc=0980434_val_acc=0954013.pth"
-                checkpoint = torch.load(ckpt_path)
-                with open(hparams_path, "rb") as fp:
-                    hparams = pickle.load(fp)
-                (hparams.cfg)['model']['num_classes']=2
-                print(hparams.cfg)
-                model = Classifier(hparams.cfg)
-                print(model)
-
-                save_model =checkpoint['model_state_dict']
-                model_dict = model.state_dict()
-                state_dict = {k:v for k,v in save_model.items() if (k in model_dict.keys() and k not in ['model._conv_stem.weight','model._fc.bias','model._fc.weight'])}
-                print(state_dict.keys())
-                model_dict.update(state_dict)
-                model.load_state_dict(model_dict)
-            elif model_name=='passt':
-                from hear21passt.base import get_basic_model,get_model_passt
-                # get the PaSST model wrapper, includes Melspectrogram and the default pre-trained transformer
-                model = get_basic_model(mode="logits")
-                print(model.mel) # Extracts mel spectrogram from raw waveforms.
-                model.net = get_model_passt(arch="passt_s_swa_p16_128_ap476",  n_classes=2
-                                            ,in_channels=21
-                                            )
-
-                print(model.net) # the transformer network.
-                state_dict=torch.load('./hear21passt/pre_train/passt-s-f128-p16-s10-ap.476-swa.pt')
-                poplist=['patch_embed.proj.weight',"head.1.weight","head.1.bias","head_dist.weight","head_dist.bias"]
-                for layer in poplist:
-                    state_dict.pop(layer)
-
-
-                model.net.load_state_dict(state_dict,strict=False)
 
 
 
@@ -360,10 +309,6 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 optimizer__lr=lr,
                 optimizer__weight_decay=weight_decay,
                 batch_size=batch_size,
-                # callbacks=[
-                #     "accuracy", ("lr_scheduler", LRScheduler('CosineAnnealingLR', T_max=n_epochs - 1)),("cp",cp),\
-                #     # ("es",es)
-                # ],
                 callbacks=callbacks,
                 device=device,
             )
@@ -542,29 +487,20 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                     for i in range(len_true//16384):
                         writer1.writerow(windows_true[i*16384:(i+1)*16384])
                     writer1.writerow(windows_true[(len_true)//16384 * 16384:])
-                    # writer1.writerow(windows_true)
-                    # windows_pred=np.exp(np.array(clf.predict_proba(windows_ds)[:,1]))
+
                     windows_pred=np.exp(np.concatenate((np.array(clf.predict_proba(train_set)[:,1]),np.array(clf.predict_proba(valid_set)[:,1]),np.array(clf.predict_proba(test_set)[:,1]))))
                     # print('windows_pred',windows_pred,windows_pred.shape)
 
                     for i in range(len_true//16384):
                         writer1.writerow(windows_pred[i*16384:(i+1)*16384])
                     writer1.writerow(windows_pred[(len_true)//16384 * 16384:])
-                    # writer1.writerow(windows_pred)
+
                     len_train=len(list(train_set.get_metadata().target))
                     len_valid_train=len(list(valid_set.get_metadata().target))+len_train
-
-                    # writer1.writerow(find_all_zero(windows_ds.get_metadata()['i_window_in_trial'].tolist()))
-                    # print('find_all_zero',find_all_zero(train_set.get_metadata()['i_window_in_trial'].tolist()),type(find_all_zero(train_set.get_metadata()['i_window_in_trial'].tolist())))
-                    # print('find_all_zero',find_all_zero(train_set.get_metadata()['i_window_in_trial'].tolist())+[x+len_train for x in find_all_zero(valid_set.get_metadata()['i_window_in_trial'].tolist())]+[y+len_valid_train for y in find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())])
-                    # print('find_all_zero',find_all_zero(windows_ds.get_metadata()['i_window_in_trial'].tolist()))
                     writer1.writerow(find_all_zero(train_set.get_metadata()['i_window_in_trial'].tolist())+[x+len_train for x in find_all_zero(valid_set.get_metadata()['i_window_in_trial'].tolist())]+[y+len_valid_train for y in find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())])
 
-                    # writer1.writerow(windows_ds.get_metadata()['i_window_in_trial'].tolist())
-                    paths = np.array(windows_ds.description.loc[:, ['path']]).tolist()
+                    paths = np.array(train_set.description.loc[:, ['path']]).tolist()+np.array(valid_set.description.loc[:, ['path']]).tolist()+np.array(test_set.description.loc[:, ['path']]).tolist()
 
-                    # print(paths)
-                    # print(type(paths))
                     patients = []
                     sessions = []
                     for i in range(len(paths)):
@@ -579,25 +515,5 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
 
             return acc
 
-        if BO:
-            bounds_transformer = SequentialDomainReductionTransformer()
-            pbounds = {'dropout': (0,1)}
-            mutating_optimizer = BayesianOptimization(
-                f=exp,
-                pbounds=pbounds,
-                verbose=0,
-                random_state=1,
-                bounds_transformer=bounds_transformer
-            )
-            mutating_optimizer.maximize(
-                init_points=0,
-                n_iter=1,
-            )
 
-        else:
-            # print(model_name)
-            # if model_name=='deep4':
-            #     for(deep4_batch_norm_alpha) in product(DEEP4_BATCH_NORM_ALPHA):
-            #         exp()
-            # else:
-            exp(dropout=dropout)
+        exp(dropout=dropout)

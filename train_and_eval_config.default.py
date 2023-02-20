@@ -3,11 +3,13 @@
 
 log_path = "result.csv"  #where to store the result
 plot_result = False  #
-BO = False #Whether to use Bayesian optimization to search for hyperparameters
 earlystopping = True # whether  to use earlystopping
 es_patience = 10
 train_whole_dataset_again=True  #Whether to store the confidence of all data when training and predicting
 test_model=False  #Whether to train a model or load a trained model
+params=params_deep4_60
+
+
 params_deep4_60=['deep42022-08-22_08-28-46params.pt','deep42022-08-22_13-33-59params.pt','deep42022-08-22_20-08-07params.pt','deep42022-08-23_02-52-32params.pt','deep42022-08-23_07-31-26params.pt']
 params_deep4_600=['deep42022-08-23_12-11-41params.pt','deep42022-08-23_15-52-28params.pt','deep42022-08-23_16-51-15params.pt','deep42022-08-24_01-08-18params.pt','deep42022-08-24_05-00-21params.pt','deep42022-08-24_10-58-14params.pt','deep42022-08-24_11-04-58params.pt']
 params_deep4_300=['deep42022-08-25_19-30-09params.pt','deep42022-08-26_01-36-44params.pt','deep42022-08-26_06-51-30params.pt','deep42022-08-26_12-31-27params.pt','deep42022-08-26_18-57-53params.pt','deep42022-08-26_20-46-02params.pt','deep42022-08-27_04-37-34params.pt']
