@@ -1,7 +1,10 @@
+
+# When using it, you need to write a batch_test_hyperparameters.py according to this template
+
 MNE_LOG_LEVEL = ['WARNING' ] # avoid messages everytime a window is extracted
 
 # parameters
-REMOVE_ATTRIBUTE=[None]#'patients','sessions',None
+REMOVE_ATTRIBUTE=[None]#'patients','sessions',None   You can use it to remove samples from the training set that have the same attribute as the test set.
 N_REPETITIONS=1
 RANDOM_STATE = [87]
 TUAB=[True]
