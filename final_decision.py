@@ -17,19 +17,19 @@ from itertools import product
 
 N_REPETITION=[5]
 LENGTH=[10]#2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20
-USE_HIS=[True]
-ADAP_POOL=[False]
-USE_HYBRID=[False]
-TOTAL=[2910]#2986,21629,2910
+USE_HIS=[True]  # whether to input data as a histogram
+ADAP_POOL=[False]  # use adaptivepooling or padding for the raw data
+USE_HYBRID=[False]  #  whether to use hybrid model
+TOTAL=[10]    # how many recording you want to use for training and testing
 NUM_EPOCHS=[60]#20,40,60,80
 USE_SESSION_OR_PATIENTS=['patients','sessions',None]#'patients','sessions',None
 LR=[0.01]#0.001,0.002,0.005,0.01  tuab:(0.01,64)  tueg(0.005,256)
-FIX_TESTSET=[True]#True,False
+FIX_TESTSET=[True]#True,False   # whether to use random splitting or the splitting as same as the first-stage model
 BATCH_SIZE=[64]#8,16,32,64,128,256,512,1024
-BLOCK=[0]#0,1,2,3,4,5,6,7
-HIDDEN_LAYERS=[0]
-HIDDEN_LENGTH=[5]
-START_ROW_GAP=[[1,4,4]]  #[266,4,3],[412,2,3],[381,1,3],[584,4,4],[544,2,4],[484,1,4]    [1,4,4],[91,1,4],[121,2,4],[231,4,4],[191,2,4],[161,1,4]
+BLOCK=[0,1,2,3,4]#0,1,2,3,4,5,6,7   # How many results of several experiments with the first stage model you want to use
+HIDDEN_LAYERS=[0]    # depth of hidden layer
+HIDDEN_LENGTH=[5]    # length of hidden layer
+START_ROW_GAP=[[1,4,4]]  #[266,4,3],[412,2,3],[381,1,3],[584,4,4],[544,2,4],[484,1,4]    [1,4,4],[91,1,4],[121,2,4],[231,4,4],[191,2,4],[161,1,4]   #start row, how many row labels, how many rows between probabilities and next labels
 def remove_all(list1,num):
     while(num in list1):
         list1.remove(num)
@@ -45,19 +45,8 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
         total=2986
     filename = './training_detail.csv'
     print('start_row_gap',start_row_gap)
-    # print(block)
-    # n_repetition=5
-    # length=7
-    # use_his=True
-    # adap_pool=True
-    # use_hybrid=False
-    # total=5972
-    # use_session_or_patients='patients'
 
-    # with open('./training_detail.csv','r') as f:
-
-    # total = sum(1 for line in open(filename))
-    # print('The total lines is ',total)
+    # read data
     pd_labels=[]
     pd_valid_lens=[]
     pd_data=[]
@@ -84,7 +73,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
 
     pd_valid_lens.append(len(pd_labels))
 
-
+    # Convert data from str to int or float
     for i in range(len(pd_valid_lens)):
         # print(pd_valid_lens[i])
         pd_valid_lens[i]=int(pd_valid_lens[i])
@@ -105,27 +94,14 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             pd_labels[i] = 0
     print(len(pd_labels))
     print(sum(pd_labels))
-    print('true_ratio:',float(true_num/len(pd_labels)))
-    # results= pd.read_csv(filename)
-    # print(results)
-    # print(results.loc[2,'16000'])
+    print('true_ratio:',float(true_num/len(pd_labels)))# Check the ratio of positive and negative samples
+
     labels=[]
     valid_lens=[]
     data=[]
-    # pd_valid_lens=results.loc[2,:].tolist()[:total+1]
-    # for i in range(len(pd_valid_lens)):
-    #     pd_valid_lens[i]=int(pd_valid_lens[i])
-    # pd_data=results.loc[1,:].tolist()
-    # for i in range(len(pd_data)):
-    #     pd_data[i]=float(pd_data[i])
-    # pd_labels=results.loc[0,:].tolist()
-    # for i in range(len(pd_labels)):
-    #     if pd_labels[i]=='FALSE':
-    #         pd_labels[i]=0
-    #     else:
-    #         pd_labels[i] = 1
 
-    def creat_his(raw,length=10):
+
+    def creat_his(raw,length=10): # generate histogram from raw
         his=np.zeros(length)
         for i in raw:
             # if i>1:
@@ -136,7 +112,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
         his=his/sum(his)
         # print(his)
         return his
-    def creat_his_by_criterion(criterion):
+    def creat_his_by_criterion(criterion):  #Generate a histogram based on an indicator
         for i in set(criterion):
             indexes=findall(criterion,i)
             # print(indexes)
@@ -155,7 +131,9 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
     for i,patient in enumerate(patients):
         sessions_patients.append(str(patient)+str(sessions[i]))
     print('unique_sessions',len(set(sessions_patients)))
-    # print(pd_valid_lens[-10:])
+
+
+    #Generate data input as required
     if use_session_or_patients=='patients':
         creat_his_by_criterion(patients)
     elif use_session_or_patients=='sessions':
@@ -163,9 +141,6 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
     else:
 
         for i in range(total):
-            # if (pd_valid_lens[i+1]-pd_valid_lens[i])!=20:
-            #     total=total-1
-            #     continue
             valid_lens.append(pd_valid_lens[i+1]-pd_valid_lens[i])
             labels.append(pd_labels[pd_valid_lens[i]])
             if use_his:
@@ -176,75 +151,23 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             else:
                 data.append(pd_data[pd_valid_lens[i]:pd_valid_lens[i+1]]+[0]*(20-valid_lens[-1]))
 
-    # for i,d in enumerate(data):
-    #     if len(d)!=30:
-    #         print(d)
-    #         print(valid_lens[i])
-    # print(labels)
-    # print(valid_lens)
-    # print(data)
-    # labels=labels[:-4000]
-    # valid_lens=valid_lens[:-4000]
-    # data=data[:-4000]
     print('labels',type(labels),np.array(labels).shape)
     print('data',type(data),np.array(data).shape)
+
+
     xgboost=False
-    if xgboost:
+    if xgboost:  #Use xgboost as the second stage model
         import xgboost as xgb
         from sklearn.metrics import accuracy_score
         import matplotlib.pyplot as plt
         train_len=int(len(labels)*0.8)
-        # train_set= xgb.DMatrix(np.array(data[:train_len]), label=np.array(labels[:train_len]))
-        # test_set= xgb.DMatrix(np.array(data[train_len:]))
-        # test_label=np.array(labels[train_len:])
-        # # # for i in range(n_repetition):
-        # params = {
-        #             'booster': 'gbtree',
-        #             'objective': 'multi:softmax',
-        #             'num_class': 2,
-        #             'gamma': 0.1,
-        #             'max_depth': 6,
-        #             'lambda': 2,
-        #             'subsample': 0.7,
-        #             'colsample_bytree': 0.75,
-        #             'min_child_weight': 3,
-        #             'silent': 0,
-        #             'eta': 0.1,
-        #             'seed': 1,
-        #             'nthread': 4,
-        #         }
-        # plst = list(params.items())
-        # num_rounds = 500
-        # model = xgb.train(plst, train_set, num_rounds)
-        # y_pred = model.predict(test_set)
-        #
-        #
-        # accuracy = accuracy_score(test_label,y_pred)
-        # print("accuarcy: %.2f%%" % (accuracy*100.0))
-        #
-        #     xgb.plot_importance(model)
-        # plt.show()
-        #
+
         from sklearn.model_selection import GridSearchCV
         train_x=np.array(data[:train_len])
         train_y=np.array(labels[:train_len])
         test_x=np.array(data[train_len:])
         test_y=np.array(labels[train_len:])
-        #
-        #
-        # parameters = {
-        #               'max_depth': [5, 10, 15, 20, 25],
-        #               'learning_rate': [0.01, 0.02, 0.05, 0.1, 0.15],
-        #               'n_estimators': [500, 1000, 2000, 3000, 5000],
-        #               'min_child_weight': [0, 2, 5, 10, 20],
-        #               # 'max_delta_step': [0, 0.2, 0.6, 1, 2],
-        #               # 'subsample': [0.6, 0.7, 0.8, 0.85, 0.95],
-        #               # 'colsample_bytree': [0.5, 0.6, 0.7, 0.8, 0.9],
-        #               # 'reg_alpha': [0, 0.25, 0.5, 0.75, 1],
-        #               # 'reg_lambda': [0.2, 0.4, 0.6, 0.8, 1],
-        #               # 'scale_pos_weight': [0.2, 0.4, 0.6, 0.8, 1]
-        #
-        # }
+
         parameters = {
                       'max_depth': [5, 10, 15, 20, 25],
 
@@ -294,11 +217,9 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
                              time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time())),\
                              start,rows,block,use_his,use_hybrid,use_session_or_patients])
     else:
-        # print(len(labels))
-        # print(len(valid_lens))
-        # print(len(data))
-        # print('min',min(valid_lens))
-        class MyDataset(Dataset):
+
+        #Using an artificial neural network as a second-stage model
+        class MyDataset(Dataset):#build dataset
             def __init__(self,data,labels,valid_lens):
                 self.valid_lens=valid_lens
                 self.labels=labels
@@ -314,6 +235,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
         ave_argmax_acc=0
         ave_mean_acc=0
         for n_time in range(n_repetition):
+            # Divide the training set and test set according to the data division of the first-stage model
             if rows==4:
                 train_ratio=0.9079
             else:
@@ -322,19 +244,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
                                                          random_state=n_time,
                                                          train_size=train_ratio,
                                                          shuffle=not fix_testset)
-            # if fix_testset:
-            #     if rows==4:
-            #         idx_train=range(2986)[:2709]
-            #         idx_test=range(2986)[2709:]
-            #     else:
-            #         idx_train=range(2910)[:2642]
-            #         idx_test=range(2910)[2642:]
-            # else:
-            #     idx_train, idx_test = train_test_split(np.arange(len(valid_lens)),
-            #                                              random_state=n_time,
-            #                                              train_size=0.9,
-            #                                              shuffle=not fix_testset)
-            # print(idx_train)
+
             idx_train, idx_valid = train_test_split(idx_train,
                                                          random_state=n_time,
                                                          train_size=0.75,
@@ -352,6 +262,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             #     print('label',label)
             #     print('valid_len',valid_len)
 
+            #define models
             class decision_model(nn.Module):
                 def __init__(self,adap_pool=True):
                     super().__init__()
@@ -422,12 +333,12 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             else:
                 model=decision_model(adap_pool=adap_pool)
             print(model)
-            # datum1,label1,valid_len1=next(iter(data_loader))
-            # print(model(datum1))
+
             cuda = torch.cuda.is_available()  # check if GPU is available, if True chooses to use it
             device = 'cuda' if cuda else 'cpu'
             model.to(device)
 
+            #set optimizer,scheduler, and loss
             optimizer = torch.optim.Adam(model.parameters(), lr=lr,weight_decay=0.01)
             T_max=num_epochs
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max, eta_min=0, last_epoch=-1)
@@ -435,7 +346,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             loss = torch.nn.NLLLoss()
             model.train()
 
-
+            # train on trainingset
             min_loss_val = 1000000
             best_model=None
             iters = len(data_loader)
@@ -465,6 +376,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
                     print('loss:',total_loss)
                     print('acc',right/all)
 
+                # test on the valid_set
                 all=0
                 right=0
                 total_loss=0
@@ -486,6 +398,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
                     print('valid_loss:',total_loss)
                     print('valid_acc',right/all)
 
+            #choose the best model and test on the testset
             model=best_model
             print('min_loss_val',min_loss_val)
             model.eval()
@@ -533,6 +446,7 @@ for (n_repetition,length,use_his,adap_pool,use_hybrid,total,use_session_or_patie
             ave_argmax_acc+=right_argmax/all_argmax
             ave_mean_acc+=right_mean/all_mean
 
+        # save the results
         ave_test_acc=float(ave_test_acc/n_repetition)
         ave_ori_acc=float(ave_ori_acc/n_repetition)
         ave_argmax_acc=float(ave_argmax_acc/n_repetition)

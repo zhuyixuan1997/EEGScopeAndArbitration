@@ -94,8 +94,8 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
     data_loading_start = time.time()
 
 
-    window_len_samples = window_len_s*sampling_freq
-    if load_saved_windows:
+    window_len_samples = window_len_s*sampling_freq #Count how many data points are in a window
+    if load_saved_windows:   # load preprocessed windows
         load_ids = list(range(n_load)) if n_load else None
         windows_ds = load_concat_dataset(
             path=saved_windows_path,
@@ -105,7 +105,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             n_jobs=1,
         )
     else:
-        if load_saved_data:
+        if load_saved_data:  # load preprocessed recordings
             load_ids=list(range(n_load)) if n_load else None
             ds=load_concat_dataset(
             path=saved_path,
@@ -115,52 +115,49 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
         )
         else:
             tuab_ids = list(range(n_tuab)) if n_tuab else None
-            ds_tuab= TUHAbnormal(
+            ds_tuab= TUHAbnormal(     #load tuab
                 tuab_path, recording_ids=tuab_ids,target_name='pathological',
                 preload=preload)
             print(ds_tuab.description)
 
-            if tueg:
+            if tueg:  #load tueg
                 tueg_ids=list(range(n_tueg)) if n_tueg else None
                 ds_tueg=TUH(tueg_path,recording_ids=tueg_ids,target_name='pathological',
                     preload=preload)
-                if tuab:
+                if tuab:   # remove the overlap between tuab and tueg if loading both
                     ds_tueg = remove_tuab_from_dataset(ds_tueg, tuab_path)
 
                 print('tueg:',ds_tueg.description)
 
             ds=BaseConcatDataset(([i for i in ds_tuab.datasets] if tuab else [])+([j for j in ds_tueg.datasets] if tueg else []))
             print('concate:',ds.description)
-            ds=select_by_duration(ds,tmin,tmax)
+
+            ds=select_by_duration(ds,tmin,tmax)  #select the recording with the lenth we want
             print('select_duration:',ds.description)
 
-            for i in range(len(relabel_label)):
+            for i in range(len(relabel_label)):  #label the data without labels
                 ds.set_description(relabel(ds,relabel_label[i],relabel_dataset[i]),overwrite=True)
             print('labeled:',ds.description)
 
-            ds=select_labeled(ds)
+            ds=select_labeled(ds)   # removed unlabeled data
             print('select_labeled:',ds.description)
 
-            ds=select_by_channel(ds,channels)
+            ds=select_by_channel(ds,channels)  # removed the data that do not have all the channels we want
             print('select_channel:',ds.description)
 
 
-            preprocessors = [
+            preprocessors = [  #preprocessing list
                 Preprocessor('pick_types', eeg=True, meg=False, stim=False),# Keep EEG sensors
-                Preprocessor('pick_channels',ch_names = channels,ordered=True),
-                Preprocessor(fn='resample', sfreq=sampling_freq),
+                Preprocessor('pick_channels',ch_names = channels,ordered=True),  #select the channels we want
+                Preprocessor(fn='resample', sfreq=sampling_freq),  # resampling the data
                 Preprocessor(custom_crop, tmin=sec_to_cut, tmax=duration_recording_sec+sec_to_cut, include_tmax=False,
-                             apply_on_array=False),
-                # Preprocessor('crop',tmin=sec_to_cut,tmax=duration_recording_sec+sec_to_cut),
+                             apply_on_array=False),  #select desired segment of recordings
                 Preprocessor(scale, factor=1e6, apply_on_array=True),  # Convert from V to uV
-                # Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz),  # Bandpass filter
-                Preprocessor(np.clip, a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),
-                # Preprocessor(exponential_moving_standardize,  # Exponential moving standardization
-                #              factor_new=factor_new, init_block_size=init_block_size)
+                Preprocessor(np.clip, a_min=-max_abs_val, a_max=max_abs_val, apply_on_array=True),  #Clip the data within the specified range
             ]
-            if multiple:
+            if multiple: #scaling
                 preprocessors.append(Preprocessor(scale, factor=multiple,apply_on_array=True))
-            if bandpass_filter:
+            if bandpass_filter: #filtering
                 preprocessors.append(Preprocessor('filter', l_freq=low_cut_hz, h_freq=high_cut_hz))
             if standardization:
                 preprocessors.append(Preprocessor(exponential_moving_standardize,  # Exponential moving standardization
@@ -170,12 +167,12 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
 
 
         fs = ds.datasets[0].raw.info['sfreq']
-        window_len_samples = int(fs * window_len_s)
-        if not window_stride_samples:
+        window_len_samples = int(fs * window_len_s)  # calculate window lengths
+        if not window_stride_samples:  # set the stride between windows
             window_stride_samples = window_len_samples
 
         # window_stride_samples = int(fs * window_len_s)
-        windows_ds = create_fixed_length_windows(
+        windows_ds = create_fixed_length_windows(  # windowing the data
             ds, start_offset_samples=0, stop_offset_samples=None,
             window_size_samples=window_len_samples,
             window_stride_samples=window_stride_samples, drop_last_window=True,
@@ -222,18 +219,17 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             train_set, valid_set, test_set = split_data(windows_ds, split_way, train_size, valid_size, test_size,
                                                         shuffle, random_state+i)
 
-        if model_name=='vit':
-            # Avoid memory errors by forcing smaller batch size
-            batch_size = min(batch_size, 4)
 
         mne.set_log_level(mne_log_level)
         def exp(dropout=0.2):
-            if activation=='elu':
+            if activation=='elu':  #choose the activation function
                 nonlin=elu
             elif activation=='relu':
                 nonlin=relu
             elif activation=='gelu':
                 nonlin=gelu
+
+            #select the model(first-stage)
             if model_name=='deep4':
                 model = Deep4Net(
                             n_channels, n_classes, input_window_samples=window_len_samples,
@@ -294,6 +290,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             from braindecode import EEGClassifier
             from skorch.callbacks import Checkpoint,EarlyStopping
 
+            # set the learning rate scheduler
             monitor = lambda net: all(net.history[-1, ('train_loss_best', 'valid_loss_best')])
             cp = Checkpoint(monitor=monitor,dirname='', f_criterion=None, f_optimizer=None, load_best=False)
             callbacks=["accuracy", ("lr_scheduler", LRScheduler('CosineAnnealingLR' ,T_max=n_epochs - 1)),("cp",cp)] #'CosineAnnealingWarmRestarts', T_0=10 'CosineAnnealingLR' ,T_max=n_epochs - 1
@@ -301,6 +298,8 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 es_patience=n_epochs//3
                 es=EarlyStopping(threshold=0.001, threshold_mode='rel', patience=es_patience)
                 callbacks.append(('es',es))
+
+            #Set various parameters for training
             clf = EEGClassifier(
                 model,
                 criterion=torch.nn.NLLLoss(weight_function(train_set.get_metadata().target,device)),
@@ -320,7 +319,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             # Model training for a specified number of epochs. `y` is None as it is already supplied
             # in the dataset.
             global i
-            if not test_model:
+            if not test_model: # Choose to load a model or train a model
                 clf.fit(train_set, y=None, epochs=n_epochs)
                 clf.save_params('./saved_models/'+model_name+time.strftime('%Y-%m-%d_%H-%M-%S',time.localtime(time.time()))+'params.pt')
 
@@ -342,7 +341,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 df = df.assign(train_misclass=100 - 100 * df.train_accuracy,
                                valid_misclass=100 - 100 * df.valid_accuracy)
                 print(df)
-                if plot_result:
+                if plot_result: # whether plot the result
                     plt.style.use('seaborn')
                     fig, ax1 = plt.subplots(figsize=(8, 3))
                     df.loc[:, ['train_loss', 'valid_loss']].plot(
@@ -370,42 +369,27 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
 
             from sklearn.metrics import confusion_matrix
             from braindecode.visualization import plot_confusion_matrix
-            if test_on_brainvision:
-                windows_brainvision=load_brainvision_as_windows('D:\\phd\\sleep\\data\\Fastball')
-                brainvision_pred=clf.predict(windows_brainvision)
-                brainvision_true=windows_brainvision.get_metadata().target
-                brainvision_confusion_mat = confusion_matrix(brainvision_true, brainvision_pred)
-                print('brainvision',brainvision_confusion_mat)
-            # generate confusion matrices
+
+            # test on the testset
             print('test:',test_set.description)
             y_true = test_set.get_metadata().target
-            # print(y_true)
             starts=find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())
-
-
-            # print(starts)
-            # print('y_true:',y_true)
-            # print(len(y_true))
             y_pred = clf.predict(test_set)
             y_pred_proba=clf.predict_proba(test_set)
-            # print('y_pred_proba:',y_pred_proba)
             print('diff:',sum((np.exp(np.array(y_pred_proba[:,1]))>0.5)!=y_pred))
-            # for i,j in zip(y_pred)
 
-
-            # print(y_pred)
-            # print('y_pred:',y_pred)
-            # print(len(y_pred))
+            # generate confusion matrices
             confusion_mat_per_recording=con_mat(starts,y_true,y_pred)
             confusion_mat_per_recording_proba=con_mat(starts,y_true,y_pred,True,y_pred_proba)
             print(confusion_mat_per_recording)
             print(confusion_mat_per_recording_proba)
 
 
-            # generating confusion matrix
             confusion_mat = confusion_matrix(y_true, y_pred)
             print(confusion_mat)
-            # print(type(confusion_mat))
+
+
+            # generate various evaluation index
             precision=confusion_mat[0,0]/(confusion_mat[0,0]+confusion_mat[1,0])
             recall=confusion_mat[0,0]/(confusion_mat[0,0]+confusion_mat[0,1])
             acc=(confusion_mat[0,0]+confusion_mat[1,1])/(confusion_mat[0,0]+confusion_mat[0,1]+confusion_mat[1,1]+confusion_mat[1,0])
@@ -426,7 +410,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
             print('etl_time:',etl_time)
             print('model_training_time:',model_training_time)
 
-            with open(log_path, 'a') as f:
+            with open(log_path, 'a') as f: # save the results
                 writer = csv.writer(f, delimiter=',', lineterminator='\n', )
                 if not test_model:
                     his_len=len(df)
@@ -455,14 +439,6 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                  channels,dropout, precision_per_recording,recall_per_recording,acc_per_recording,mcc,mcc_per_recording,activation,remove_attribute])
 
 
-            # print(type(confusion_mat[0][0]))
-            # # add class labels
-            # # label_dict is class_name : str -> i_class : int
-            # label_dict = test_set.datasets[0].windows.event_id.items()
-            # print(label_dict)
-            # # # sort the labels by values (values are integer class labels)
-            # labels = list(dict(sorted(list(label_dict), key=lambda kv: kv[1])).keys())
-            # print(labels)
             if plot_result:
                 labels=['normal','abnormal']
                 # plot the basic conf. matrix
@@ -472,7 +448,7 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                 plot_confusion_matrix(confusion_mat_per_recording, class_names=labels)
                 plt.show()
 
-            if train_whole_dataset_again:
+            if train_whole_dataset_again: #Store all the information needed for the second stage model
                 with open('./training_detail.csv', 'a') as f1:
                     print('len_train_valid',len(train_set)+len(valid_set))
                     print('len_test',len(test_set))
@@ -480,27 +456,27 @@ for (random_state,tuab,tueg,n_tuab,n_tueg,n_load,preload,window_len_s,\
                     writer1 = csv.writer(f1, delimiter=',', lineterminator='\n', )
                     writer1.writerow([time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))])
 
-                    # windows_true = windows_ds.get_metadata().target
-                    windows_true =list(train_set.get_metadata().target)+list(valid_set.get_metadata().target)+list(test_set.get_metadata().target)
-                    # print('windows_true',windows_true,len(windows_true),type(windows_true))
+                    windows_true =list(train_set.get_metadata().target)+list(valid_set.get_metadata().target)+list(test_set.get_metadata().target) #save labels
                     len_true=len(windows_true)
                     for i in range(len_true//16384):
                         writer1.writerow(windows_true[i*16384:(i+1)*16384])
                     writer1.writerow(windows_true[(len_true)//16384 * 16384:])
 
-                    windows_pred=np.exp(np.concatenate((np.array(clf.predict_proba(train_set)[:,1]),np.array(clf.predict_proba(valid_set)[:,1]),np.array(clf.predict_proba(test_set)[:,1]))))
-                    # print('windows_pred',windows_pred,windows_pred.shape)
+                    windows_pred=np.exp(np.concatenate((np.array(clf.predict_proba(train_set)[:,1]),np.array(clf.predict_proba(valid_set)[:,1]),np.array(clf.predict_proba(test_set)[:,1])))) #Store predicted probabilities for all data
 
                     for i in range(len_true//16384):
                         writer1.writerow(windows_pred[i*16384:(i+1)*16384])
                     writer1.writerow(windows_pred[(len_true)//16384 * 16384:])
 
+
+                    #Store how many windows each recording has
                     len_train=len(list(train_set.get_metadata().target))
                     len_valid_train=len(list(valid_set.get_metadata().target))+len_train
                     writer1.writerow(find_all_zero(train_set.get_metadata()['i_window_in_trial'].tolist())+[x+len_train for x in find_all_zero(valid_set.get_metadata()['i_window_in_trial'].tolist())]+[y+len_valid_train for y in find_all_zero(test_set.get_metadata()['i_window_in_trial'].tolist())])
 
-                    paths = np.array(train_set.description.loc[:, ['path']]).tolist()+np.array(valid_set.description.loc[:, ['path']]).tolist()+np.array(test_set.description.loc[:, ['path']]).tolist()
 
+                    #Store the session and patient to which each recording belongs
+                    paths = np.array(train_set.description.loc[:, ['path']]).tolist()+np.array(valid_set.description.loc[:, ['path']]).tolist()+np.array(test_set.description.loc[:, ['path']]).tolist()
                     patients = []
                     sessions = []
                     for i in range(len(paths)):
