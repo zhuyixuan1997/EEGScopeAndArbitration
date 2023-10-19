@@ -61,7 +61,7 @@ DROPOUT=[0.1]
 WINDOW_STRIDE_SAMPLES=[None] #if None, window_stride_samples = window_len_samples
 #The next two parameters can be extended. For example, [dataset1,dataset2,...] [label1,label2,...]
 RELABEL_DATASET=[['D:/phd/tueg1g']]  # which dataset should be labelled
-RELABEL_LABEL=[['D:\\phd\\autoTUAB2\\tueg_labels.csv']]
+RELABEL_LABEL=[['D:\\phd\\autoTUAB2\\autoTUAB_labels.csv']]
 
 CHANNELS=[[
             # 'EEG A1-REF', 'EEG A2-REF',
